@@ -1,26 +1,39 @@
-const int waterSensor = A2; //sensor pin connected to analog pin A0
-const int buzzer = 2; //buzzer to arduino pin D2
+const int waterSensor = A2; 
+const int groundMoistureSensor = A6;
+const int buzzer = 2; 
 int waterLevel;
+int moistureLevel;
 int canWaterPumpWork = 0;
 
 void setup() {
-  Serial.begin(9600); //sets the baud rate for data transfer in bits/second
-  pinMode(waterSensor, INPUT);//the liquid level sensor will be an input to the arduino
+  Serial.begin(9600); 
+  pinMode(waterSensor, INPUT);
+  pinMode(groundMoistureSensor, INPUT);
   pinMode(buzzer, OUTPUT);
 }
 
 void loop() {
-  waterLevel=analogRead(waterSensor) ; //arduino reads the value from the liquid level sensor
+  moistureLevel = analogRead(groundMoistureSensor);
+  waterLevel=analogRead(waterSensor); 
   if(waterLevel < 20){
-    digitalWrite(buzzer, HIGH);
+  /*  digitalWrite(buzzer, HIGH);
     delay(100);
     digitalWrite(buzzer, LOW);
+    delay(1000);*/
+    
     canWaterPumpWork = 0;
   }
 
-  if(waterLevel > 0){
+  if(waterLevel > 20){
     canWaterPumpWork = 1;
   }
-  Serial.println(waterLevel);//prints out liquid level sensor reading
-  delay(100);//delays 100ms
+ /* if(humidityLevel < ? && canWaterPumpWork == 1)
+  {
+    //pompa sie zalacza z pid
+  }*/
+  Serial.print("Moisture Sensor Value:");
+  Serial.println(moistureLevel);
+  Serial.print("Water Level Sensor Value:");
+  Serial.println(waterLevel);
+  delay(1000);//delays 100ms
 }
