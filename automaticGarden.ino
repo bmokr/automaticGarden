@@ -1,8 +1,16 @@
+/*
+ * 
+ * rights for PID example, on which pid control here is based, belongs to rightful owner http://www.electronoobs.com/eng_arduino_tut24_code3.php
+ * temperature reading based on OneWire -> DS18x20_Temperature 
+ * 
+ */
+ 
 #include <OneWire.h>
 
 OneWire  ds(8);
 
 #define enA 9
+#define enB 10
 #define in1 6
 #define in2 5
 #define in3 4
@@ -12,11 +20,12 @@ const int waterSensor = A2;
 const int groundMoistureSensor = A6;
 const int buzzer = 2; 
 int waterLevel;
+int waterCounter = 0;
 int moistureLevel;
 bool canWaterPumpWork = false;
 bool isWaterPumpWorking = false;
 
-const float groundTemperature = 60.0;
+const float groundTemperature = 27.0;
 
 float PID_error = 0;
 float previous_error = 0;
@@ -40,9 +49,10 @@ void setup() {
   pinMode(groundMoistureSensor, INPUT);
   pinMode(buzzer, OUTPUT);
 
-  digitalWrite(in1, LOW);
-  digitalWrite(in2, HIGH);
+  digitalWrite(in1, HIGH);
+  digitalWrite(in2, LOW);
   analogWrite(enA, 0);
+  analogWrite(enB, 100);
 }
 
 void loop() {
@@ -51,19 +61,19 @@ void loop() {
    */
   moistureLevel = analogRead(groundMoistureSensor);
   waterLevel=analogRead(waterSensor); 
-  if(waterLevel < 20){
-  /*  digitalWrite(buzzer, HIGH);
+  if(waterLevel < 20 && waterCounter < 3){
+    
+    digitalWrite(buzzer, HIGH);
     delay(100);
     digitalWrite(buzzer, LOW);
-    
-    
-    */
-    
+    waterCounter++;
+
     canWaterPumpWork = false;
   }
 
   if(waterLevel > 20){
     canWaterPumpWork = true;
+    waterCounter = 0;
   }
 
   byte i;
@@ -93,10 +103,9 @@ void loop() {
   }
   Serial.println();
 
-  // the first ROM byte indicates which chip
   switch (addr[0]) {
     case 0x10:
-      Serial.println("  Chip = DS18S20");  // or old DS1820
+      Serial.println("  Chip = DS18S20");  
       type_s = 1;
       break;
     case 0x28:
@@ -114,19 +123,17 @@ void loop() {
  
   ds.reset();
   ds.select(addr);
-  ds.write(0x44, 1);        // start conversion, with parasite power on at the end
+  ds.write(0x44, 1);        
   
-  delay(1000);     // maybe 750ms is enough, maybe not
-  // we might do a ds.depower() here, but the reset will take care of it.
-  
+  delay(1000);     
   present = ds.reset();
   ds.select(addr);    
-  ds.write(0xBE);         // Read Scratchpad
+  ds.write(0xBE);         
  
   Serial.print("  Data = ");
   Serial.print(present, HEX);
   Serial.print(" ");
-  for ( i = 0; i < 9; i++) {           // we need 9 bytes
+  for ( i = 0; i < 9; i++) {           
     data[i] = ds.read();
     Serial.print(data[i], HEX);
     Serial.print(" ");
@@ -135,24 +142,20 @@ void loop() {
   Serial.print(OneWire::crc8(data, 8), HEX);
   Serial.println();
  
-  // Convert the data to actual temperature
-  // because the result is a 16 bit signed integer, it should
-  // be stored to an "int16_t" type, which is always 16 bits
-  // even when compiled on a 32 bit processor.
   int16_t raw = (data[1] << 8) | data[0];
   if (type_s) {
-    raw = raw << 3; // 9 bit resolution default
+    raw = raw << 3; 
     if (data[7] == 0x10) {
-      // "count remain" gives full 12 bit resolution
+      
       raw = (raw & 0xFFF0) + 12 - data[6];
     }
   } else {
     byte cfg = (data[4] & 0x60);
-    // at lower res, the low bits are undefined, so let's zero them
-    if (cfg == 0x00) raw = raw & ~7;  // 9 bit resolution, 93.75 ms
-    else if (cfg == 0x20) raw = raw & ~3; // 10 bit res, 187.5 ms
-    else if (cfg == 0x40) raw = raw & ~1; // 11 bit res, 375 ms
-    //// default is 12 bit resolution, 750 ms conversion time
+  
+    if (cfg == 0x00) raw = raw & ~7; 
+    else if (cfg == 0x20) raw = raw & ~3; 
+    else if (cfg == 0x40) raw = raw & ~1; 
+    
   }
   celsius = (float)raw / 16.0;
 
@@ -177,15 +180,14 @@ void loop() {
     * WATER PUMP
     */
     
-  if(moistureLevel > 600 && canWaterPumpWork == true)
+  if(moistureLevel > 700 && canWaterPumpWork == true)
   {
   digitalWrite(in3, LOW);
   digitalWrite(in4, HIGH);
   isWaterPumpWorking = true;
-  delay(10000);
   }
   
-  if(moistureLevel < 700 && isWaterPumpWorking == true)
+  if(moistureLevel < 350 && isWaterPumpWorking == true)
   {
   digitalWrite(in3, LOW);
   digitalWrite(in4, LOW);
@@ -197,22 +199,22 @@ void loop() {
    */
    PID_error = groundTemperature - celsius;
 
-   //Calculate the P value
+
    PID_p = 0.01*kp * PID_error;
-   //Calculate the I value in a range on +-3
+
    PID_i = 0.01*PID_i + (ki * PID_error);
   
 
-   //For derivative we need real time to calculate speed change rate
-   timePrev = Time;                            // the previous time is stored before the actual time read
-   Time = millis();                            // actual time read
+
+   timePrev = Time;                            
+   Time = millis();                            
    elapsedTime = (Time - timePrev) / 1000; 
-   //Now we can calculate the D calue
+
    PID_d = 0.01*kd*((PID_error - previous_error)/elapsedTime);
-   //Final total PID value is the sum of P + I + D
+ 
    PID_value = PID_p + PID_i + PID_d;
 
-   //We define PWM range between 0 and 255
+
    if(PID_value < 0)
    {    PID_value = 0;    }
    if(PID_value > 255)  
@@ -224,6 +226,7 @@ void loop() {
    Serial.println(PID_value);
    
    analogWrite(enA,PID_value);
-   previous_error = PID_error;     //Remember to store the previous error for next loop.
+   previous_error = PID_error;     
+   
   delay(1000);
 }
